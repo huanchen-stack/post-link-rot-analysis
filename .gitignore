@@ -1,5 +1,6 @@
 env/
-edit_history/
+edit_history*/
 *.txt
 *.log
+*.out
 enwiki*.xml*
