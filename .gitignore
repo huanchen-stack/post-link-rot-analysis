@@ -1,0 +1,5 @@
+env/
+edit_history/
+*.txt
+*.log
+enwiki*.xml*
