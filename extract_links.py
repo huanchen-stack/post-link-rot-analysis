@@ -2,6 +2,8 @@ import mwparserfromhell
 import os
 import json
 
+YEAR = "2014"
+
 def extract_external_links(text):
     """Extracts external links from wikicode text."""
     wikicode = mwparserfromhell.parse(text)
@@ -16,10 +18,10 @@ def extract_external_links(text):
 def process_files(folder_path):
     """Processes all .txt files in the folder, extracting external links and saving to JSON."""
     for filename in os.listdir(folder_path):
-        if filename.endswith("-2019.txt"):
-            article_name = filename.replace("-2019.txt", "")
+        if filename.endswith(f"-{YEAR}.txt"):
+            article_name = filename.replace(f"-{YEAR}.txt", "")
             txt_file_path = os.path.join(folder_path, filename)
-            json_file_path = os.path.join(folder_path, f"{article_name}-2019-external-links.json")
+            json_file_path = os.path.join(folder_path, f"{article_name}-{YEAR}-external-links.json")
             
             # Read the .txt file
             with open(txt_file_path, "r", encoding="utf-8") as txt_file:
@@ -27,6 +29,8 @@ def process_files(folder_path):
             
             # Extract external links
             external_links = extract_external_links(article_text)
+
+            external_links = [l.lstrip('[').rstrip(']').split()[0] for l in external_links]
             
             # Save external links to JSON file
             with open(json_file_path, "w", encoding="utf-8") as json_file:
@@ -35,7 +39,7 @@ def process_files(folder_path):
             print(f"Extracted and saved external links for {article_name}.")
 
 # Set the folder path where your files are stored
-folder_path = "edit_history_2"
+folder_path = "edit_history_4"
 
 # Process the files
 process_files(folder_path)

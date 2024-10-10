@@ -14,8 +14,8 @@ def parse_titles(filename):
     i = 0
     for event, elem in context:
         try:
-            revision_meta = {}
-            revision_text_2019 = ""
+            # revision_meta = {}
+            revision_text_2014 = ""
 
             tag_no_ns = elem.tag.split("}")[1] if "}" in elem.tag else elem.tag
             tag_no_ns = tag_no_ns.lower().strip()
@@ -28,11 +28,11 @@ def parse_titles(filename):
             if inner_ns != '0':
                 continue
             # print(title, flush=True)
-            revision_meta["title"] = title
+            # revision_meta["title"] = title
 
             revision_dumped = False
 
-            revision_meta["log"] = []
+            # revision_meta["log"] = []
             while True:
                 event, elem = next(context)
                 tag_no_ns = elem.tag.split("}")[1] if "}" in elem.tag else elem.tag
@@ -47,24 +47,24 @@ def parse_titles(filename):
                         if event == "end" and tag_no_ns == "username":
                             username = elem.text
                             # print(username, flush=True)
-                            revision_meta["log"].append({"timestamp": timestamp, "username": username})
+                            # revision_meta["log"].append({"timestamp": timestamp, "username": username})
                             break
-                    if not revision_dumped and timestamp[:4] == "2019":
+                    if not revision_dumped and timestamp[:4] == "2014":
                         revision_dumped = True
                         while True:
                             event, elem = next(context)
                             tag_no_ns = elem.tag.split("}")[1] if "}" in elem.tag else elem.tag
                             if event == "end" and tag_no_ns == "text":
                                 # print(elem.text, flush=True)
-                                revision_text_2019 = elem.text
+                                revision_text_2014 = elem.text
                                 break
             elem.clear()
 
             title = ''.join([c for c in title if c.isalnum()])
-            with open(f"{DIR}{title}-meta.json", 'w') as f:
-                json.dump(revision_meta, f)
-            with open(f"{DIR}{title}-2019.txt", 'w') as f:
-                f.write(revision_text_2019)
+            # with open(f"{DIR}{title}-meta.json", 'w') as f:
+            #     json.dump(revision_meta, f)
+            with open(f"{DIR}{title}-2014.txt", 'w') as f:
+                f.write(revision_text_2014)
         except Exception:
             pass
         # print("------------------------------------------------", flush=True)

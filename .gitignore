@@ -3,4 +3,6 @@ edit_history*/
 *.txt
 *.log
 *.out
+*.json
 enwiki*.xml*
+__pycache__/
