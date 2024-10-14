@@ -1,41 +1,48 @@
 import json
 import broken
-import os
+
+
+QUEUE_PATH = "probe/probe_live/probe_live_scheduled.json"
+O_FILE = "probe/probe_live/probe_live_results.json"
+SHARD = 3
+N_SHARD = 4
+
+AZ_IPs_PATH = "/home/huanchen/azure-deploy/az-proxy/az_config/resource_ips.json"
+PROXY_IPs = [v for _, v in json.load(open(AZ_IPs_PATH, 'r')).items()]
+print(PROXY_IPs)
+PROXY_IP = PROXY_IPs[SHARD]
+broken.PROXIES = {
+    "http": f"http://{PROXY_IP}:8888",
+    "https": f"http://{PROXY_IP}:8888"
+}
+print(broken.PROXIES)
 
 def process_queue(input_file, output_file, start_index=0):
-    # Load the probe queue data
+
     with open(input_file, "r", encoding="utf-8") as infile:
         probe_queue = json.load(infile)
-    # probe_queue = probe_queue[:5]
+    probe_queue = probe_queue[start_index::N_SHARD]
 
-    # Process each element starting from the specified index
     for index in range(start_index, len(probe_queue)):
-        entry = probe_queue[index]
-        url = entry["url"]
-        
-        # Check if the URL is broken
-        is_broken, reason = broken.broken(url)
-        
-        # Add the results to the entry
-        entry["is_broken"] = is_broken
-        entry["reason"] = reason
-        
-        # Write the processed entry to the output file
-        with open(output_file, "a", encoding="utf-8") as outfile:
-            json.dump(entry, outfile)
-            outfile.write("\n")  # Ensure each entry is on a new line
-        
-        # Print the progress
-        print(f"Processed {index + 1}/{len(probe_queue)}: {url}", flush=True)
-        
-        # Save the progress in case of interruption
-        last_processed_index = index + 1
+        try:
+            entry = probe_queue[index]
+            url = entry["url"]
+            
+            is_broken, reason = broken.broken(url)
+            
+            entry["is_broken"] = is_broken
+            entry["reason"] = reason
 
+            with open(output_file, "a", encoding="utf-8") as outfile:
+                json.dump(entry, outfile)
+                outfile.write("\n")
+
+        except Exception as e:
+            print(f"Error processing entry {index+1}: {e}", flush=True)
+
+        print(f"Processed {index + 1}/{len(probe_queue)}: {url}", flush=True)
     print("Processing completed.")
 
-# Example usage
-input_file = "probe_queue_2014.json"
-output_file = "probe_results_2014.json"
-start_index = 0  # Adjust this if you need to resume from a specific index
 
-process_queue(input_file, output_file, start_index)
+if __name__ == "__main__":
+    process_queue(QUEUE_PATH, O_FILE, SHARD)

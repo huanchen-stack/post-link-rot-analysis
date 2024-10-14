@@ -4,5 +4,9 @@ edit_history*/
 *.log
 *.out
 *.json
+enwiki/
 enwiki*.xml*
 __pycache__/
+nohup/
+probe/
+_tmp*

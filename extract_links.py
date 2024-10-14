@@ -1,45 +1,48 @@
 import mwparserfromhell
 import os
 import json
+import re
 
-YEAR = "2014"
+
+DIRS = [f"edit_history/edit_history_{i}" for i in range(1, 5)]
+YEAR = "2019"
+ARCHIVE_PATTERN = re.compile(r'(https?://(web\.)?archive\.org/web/\d+/)')
 
 def extract_external_links(text):
-    """Extracts external links from wikicode text."""
     wikicode = mwparserfromhell.parse(text)
-    external_links = []
-    
-    # Extract all external links using mwparserfromhell's filter method
+    external_links = {
+        "live_links": [],
+        "archived_links": []
+    }
     for link in wikicode.filter_external_links():
-        external_links.append(str(link))
-    
+        url = link.url.strip()
+        if ARCHIVE_PATTERN.search(url):
+            external_links["archived_links"].append(url)
+        else:
+            external_links["live_links"].append(url)
     return external_links
 
 def process_files(folder_path):
-    """Processes all .txt files in the folder, extracting external links and saving to JSON."""
+    live_links_count, archived_links_count = 0, 0
     for filename in os.listdir(folder_path):
         if filename.endswith(f"-{YEAR}.txt"):
             article_name = filename.replace(f"-{YEAR}.txt", "")
             txt_file_path = os.path.join(folder_path, filename)
             json_file_path = os.path.join(folder_path, f"{article_name}-{YEAR}-external-links.json")
             
-            # Read the .txt file
             with open(txt_file_path, "r", encoding="utf-8") as txt_file:
                 article_text = txt_file.read()
             
-            # Extract external links
             external_links = extract_external_links(article_text)
+            live_links_count += len(external_links["live_links"])
+            archived_links_count += len(external_links["archived_links"])
 
-            external_links = [l.lstrip('[').rstrip(']').split()[0] for l in external_links]
-            
-            # Save external links to JSON file
             with open(json_file_path, "w", encoding="utf-8") as json_file:
-                json.dump({"external_links": external_links}, json_file, indent=4)
+                json.dump(external_links, json_file, indent=4)
             
-            print(f"Extracted and saved external links for {article_name}.")
+            # print(f"Extracted and saved external links for {article_name}.")
+    print(f"[{folder_path}] Total live links: {live_links_count}, archived links: {archived_links_count}")
 
-# Set the folder path where your files are stored
-folder_path = "edit_history_4"
-
-# Process the files
-process_files(folder_path)
+if __name__ == "__main__":
+    for dir_ in DIRS:
+        process_files(dir_)

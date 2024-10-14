@@ -1,7 +1,7 @@
 """
 Implementation of detection of broken pages from sic transit 
 """
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, urlunparse
 
 
 from publicsuffixlist import PublicSuffixList
@@ -22,6 +22,14 @@ from sklearn.feature_extraction.text import CountVectorizer
 from nltk.corpus import stopwords
 from nltk.stem.snowball import SnowballStemmer
 from nltk.stem import WordNetLemmatizer
+
+
+USER_AGENT = "Web Measure/1.0 (https://webresearch.eecs.umich.edu/overview-of-web-measurements/) Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36"
+
+PROXIES = {
+    "http": f"http://52.160.40.241:8888",
+    "https": f"http://52.160.40.241:8888"
+}
 
 def _safe_dparse(ts):
     try:
@@ -262,7 +270,7 @@ def status_categories(status):
     status = f'{status}' # Put status into string
     if re.compile("^[45]").match(status): return "4/5xx"
     elif re.compile("^(DNSError|OtherError)").match(status): return "DNSOther"
-    elif  re.compile("^(\[.*\]|Similar|Same|no features)").match(status): return "Soft-404"
+    elif re.compile("^(\[.*\]|Similar|Same|no features)").match(status): return "Soft-404"
     else:
         return status
 
@@ -824,7 +832,7 @@ def path_common_prefix(urls):
 
 from lib2to3.pgen2 import token
 import requests
-from urllib.request import urlopen, Request
+from urllib.request import urlopen, Request, ProxyHandler, build_opener, install_opener
 import re
 import os
 from urllib.parse import urlparse, parse_qsl, urlsplit, urlunsplit
@@ -870,9 +878,9 @@ import requests
 from langcodes import Language
 from langdetect import detect_langs
 
-import justext
+# import justext
 from goose3 import Goose
-from newspaper import Article
+# from newspaper import Article
 
 import textwrap
 from dateutil import parser as dparser
@@ -939,8 +947,14 @@ def k_shingling(text1, text2, k=5):
 sys.setrecursionlimit(1500)
 he = HostExtractor()
 
+
+proxy_handler = ProxyHandler(PROXIES)
+opener = build_opener(proxy_handler)
+install_opener(opener)
+
 def alternative_request(url, timeout=15):
-    httprequest = Request(url, headers={"user-agent": "curl"})
+    global USER_AGENT
+    httprequest = Request(url, headers={"user-agent": USER_AGENT})
     with urlopen(httprequest, timeout=timeout) as response:
         r = requests.Response()
         r.status_code = response.status
@@ -957,13 +971,15 @@ def alternative_request(url, timeout=15):
 def send_request(url, timeout=15):
     """Only fetch for response body when content-type is HTML"""
     resp = None
-    requests_header = {'user-agent': "curl"}
+    global USER_AGENT
+    requests_header = {'user-agent': USER_AGENT}
 
     req_failed = True
     # if not rp.allowed(url, requests_header['user-agent']):
     #     return None, 'Not Allowed'
     try:
-        resp = requests.get(url, headers=requests_header, timeout=timeout, stream=True)
+        global PROXIES
+        resp = requests.get(url, headers=requests_header, timeout=timeout, stream=True, proxies=PROXIES, verify=False)
         # resp = requests.get(url, headers=requests_header, timeout=timeout, stream=True, verify=False)
         headers = {k.lower(): v.lower() for k, v in resp.headers.items()}
         content_type = headers['content-type'] if 'content-type' in headers else ''
@@ -1150,7 +1166,7 @@ def text_norm(text):
 
 
 def broken(url, html=False, ignore_soft_404=False, ignore_soft_404_content=False,
-            redir_home=True):
+            redir_home=True, recurse=False):
     """
     Entry func: detect whether this url is broken
     html: Require the url to be html.
@@ -1162,7 +1178,7 @@ def broken(url, html=False, ignore_soft_404=False, ignore_soft_404_content=False
     """
     broken_keywords = ['login', 'subscription', 'error', 'notfound', '404', 'badpage', 'not-found', 'not_found', 'suspendedpage.cgi']
     for k in broken_keywords: 
-        if k in url: return True, "URL soft 404"
+        if k in url: return True, "URL contains broken keyword"
 
     resp, msg = send_request(url)
     if msg == 'Not Allowed':
@@ -1175,14 +1191,14 @@ def broken(url, html=False, ignore_soft_404=False, ignore_soft_404_content=False
     if html and 'html' not in content_type:
         logger.info('sic transit broken: Not HTML')
         return "N/A", "Not html"
-    elif 'html' not in content_type: # * Not HTML, not detecting soft-404 on Non HTML resource
-        return True, "Non soft-404 on non-HTML resource"
+    # elif 'html' not in content_type: # * Not HTML, not detecting soft-404 on Non HTML resource
+    #     return True, "Non soft-404 on non-HTML resource"
     if ignore_soft_404:
         return False, "No hard broken"
 
-    # Ignore Homepages
-    if urlsplit(url).path in ['', '/']:
-        return False, "Homepage (no Soft-404 detection)"
+    # # Ignore Homepages
+    # if urlsplit(url).path in ['', '/']:
+    #     return False, "Homepage (no Soft-404 detection)"
     final_url = get_canonical(url, resp.text)
     # Non home to home 
     if redir_home:
@@ -1259,3 +1275,10 @@ def broken(url, html=False, ignore_soft_404=False, ignore_soft_404_content=False
         return 'N/A', 'Guess URLs not allowed'
     else:
         return not False in broken_decision, reasons
+
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
