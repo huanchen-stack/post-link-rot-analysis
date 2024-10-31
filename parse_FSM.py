@@ -3,8 +3,15 @@ import json
 import os
 import traceback
 
-DUMP_PATH = "enwiki/enwiki-latest-pages-meta-history4.xml-p311330p316599"
-DIR = "./edit_history/edit_history_4/"
+SHARD = 1
+ENWIKI_DUMPS = [
+    "enwiki-latest-pages-meta-history1.xml-p10839p11398",
+    "enwiki-latest-pages-meta-history2.xml-p102439p106234",
+    "enwiki-latest-pages-meta-history3.xml-p151574p154328",
+    "enwiki-latest-pages-meta-history4.xml-p311330p316599"
+]
+DUMP_PATH = f"enwiki/{ENWIKI_DUMPS[SHARD]}"
+DIR = f"edit_history/edit_history_{SHARD+1}/"
 REVISION_SAVE_YEAR = "2019"
 
 os.makedirs(DIR, exist_ok=True)
@@ -28,14 +35,16 @@ def _page(event, elem, fsm):
     elif event == "end" and tag_no_ns == "id":
         fsm["page"]["id"] = elem.text
     elif event == "start" and tag_no_ns == "revision":
+        fsm["revision"] = {}
         fsm["state"] = "_revision"  # Transition to in_revision
     elif event == "end" and tag_no_ns == "page":
         # Write page data to files
-        write_page_data(fsm["page"], fsm["revision_list"], fsm["text_to_save"])
+        write_page_data(fsm["page"], fsm["revision_list"], fsm["text_revision_save_year"]["text"], fsm["text"])
         # Re-initialize for the next page
         fsm["page"] = {}
+        fsm["text_revision_save_year"] = {}
         fsm["revision_list"] = []
-        fsm["text_to_save"] = None
+        fsm["revision"] = {}
 
 # FSM function to process revision state
 def _revision(event, elem, fsm):
@@ -49,12 +58,13 @@ def _revision(event, elem, fsm):
     elif event == "end" and tag_no_ns == "comment":
         fsm["revision"]["comment"] = elem.text
     elif event == "end" and tag_no_ns == "text":
-        if fsm["text_to_save"] is None and fsm["revision"]["timestamp"].startswith(REVISION_SAVE_YEAR):
-            fsm["text_to_save"] = elem.text or ""
+        if "timestamp" not in fsm["text_revision_save_year"] or int(fsm["revision"]["timestamp"][:4]) < int(REVISION_SAVE_YEAR):
+            fsm["text_revision_save_year"]["text"] = elem.text or ""
+            fsm["text_revision_save_year"]["timestamp"] = fsm["revision"]["timestamp"]
+        fsm["text"] = elem.text or ""
     elif event == "end" and tag_no_ns == "revision":
         # Save revision and go back to page state
         fsm["revision_list"].append(fsm["revision"])
-        fsm["revision"] = {}
         fsm["state"] = "_page"
 
 # FSM function to process contributor state
@@ -78,6 +88,7 @@ def _skip(event, elem, fsm):
         TOTAL_SKIPPED += 1
         # Reset to initial state
         fsm["page"] = {}
+        fsm["text_revision_save_year"] = {}
         fsm["revision_list"] = []
         fsm["state"] = "_page"
 
@@ -91,10 +102,11 @@ state_functions = {
 
 # Function to write page data to files
 TOTAL_COUNT = 0
-def write_page_data(page_object, revision_list, text_to_save):
+COUNT_2019 = 0
+COUNT_last = 0
+def write_page_data(page_object, revision_list, text_revision_save_year, text_last_revision):
     title_cleaned = clean_title(page_object["title"])
 
-    # Save metadata to a JSON file
     with open(f"{DIR}{title_cleaned}-meta.json", 'w', encoding='utf-8') as f:
         json.dump({
             "title": page_object["title"],
@@ -102,10 +114,15 @@ def write_page_data(page_object, revision_list, text_to_save):
             "revisions": revision_list
         }, f, indent=4)
 
-    # Save 2019 text revision to a separate file if available
-    if text_to_save:
+    global COUNT_2019, COUNT_last
+    if text_revision_save_year:
         with open(f"{DIR}{title_cleaned}-2019.txt", 'w', encoding='utf-8') as f:
-            f.write(text_to_save)
+            f.write(text_revision_save_year)
+            COUNT_2019 += 1
+        if text_last_revision:
+            with open(f"{DIR}{title_cleaned}-last.txt", 'w', encoding='utf-8') as f:
+                f.write(text_last_revision)
+                COUNT_last += 1
 
     global TOTAL_COUNT
     TOTAL_COUNT += 1
@@ -119,8 +136,7 @@ def parse_FSM(filename):
         "state": "_page",  # Initial state
         "page": {},
         "revision_list": [],
-        "revision": {},
-        "text_to_save": None
+        "text_revision_save_year": {}
     }
 
     for event, elem in context:
@@ -139,3 +155,4 @@ if __name__ == "__main__":
         traceback.print_exc()
 
     print(TOTAL_COUNT, TOTAL_SKIPPED, TOTAL_COUNT+TOTAL_SKIPPED)
+    print(COUNT_2019, COUNT_last)
