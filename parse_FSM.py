@@ -3,7 +3,7 @@ import json
 import os
 import traceback
 
-SHARD = 1
+SHARD = 3
 ENWIKI_DUMPS = [
     "enwiki-latest-pages-meta-history1.xml-p10839p11398",
     "enwiki-latest-pages-meta-history2.xml-p102439p106234",
@@ -119,10 +119,10 @@ def write_page_data(page_object, revision_list, text_revision_save_year, text_la
         with open(f"{DIR}{title_cleaned}-2019.txt", 'w', encoding='utf-8') as f:
             f.write(text_revision_save_year)
             COUNT_2019 += 1
-        if text_last_revision:
-            with open(f"{DIR}{title_cleaned}-last.txt", 'w', encoding='utf-8') as f:
-                f.write(text_last_revision)
-                COUNT_last += 1
+        # if text_last_revision:
+        with open(f"{DIR}{title_cleaned}-last.txt", 'w', encoding='utf-8') as f:
+            f.write(text_last_revision)
+            COUNT_last += 1
 
     global TOTAL_COUNT
     TOTAL_COUNT += 1

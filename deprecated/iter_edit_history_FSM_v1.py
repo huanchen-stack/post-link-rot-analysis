@@ -7,7 +7,7 @@ import fuzzy_match
 import extract_links
 
 
-SHARD = 3
+SHARD = 0
 ENWIKI_DUMPS = [
     "enwiki-latest-pages-meta-history1.xml-p10839p11398",
     "enwiki-latest-pages-meta-history2.xml-p102439p106234",
@@ -50,18 +50,12 @@ def _page(event, elem, fsm):
             fsm["state"] = "_skip"
             return
         
-        # no need to ensure both 2019 and 2024 are covered
-        last_revision_timestamp = revisions[-1].get("timestamp", "")
-        if last_revision_timestamp != "" and int(last_revision_timestamp[:4]) >= int(REVISION_SAVE_YEAR):
-            fsm["revision-meta"] = {}
-            fsm["first_revision_2019"] = {}
+        if revisions[-1]["timestamp"].startswith(CUR_YEAR):
+            fsm["revision-meta"] = {d["timestamp"]: d for d in revisions}
             for r in revisions:
-                if "timestamp" not in r:
-                    continue
-                if int(r["timestamp"][:4]) >= int(REVISION_SAVE_YEAR):
-                    if fsm["first_revision_2019"] == {}:
-                        fsm["first_revision_2019"] = r
-                    fsm["revision-meta"][r["timestamp"]] = r
+                if r["timestamp"].startswith(REVISION_SAVE_YEAR):
+                    fsm["first_revision_2019"] = r
+                    break
             fsm["last_revision"] = revisions[-1]
             fsm["broken_links"] = [
                 link_obj for link_obj in ALL_BROKEN_LINKS[folder_path][sanitized_title]["list_of_links"]
@@ -73,14 +67,12 @@ def _page(event, elem, fsm):
                     "augmentation_url": "",
                     "removal": []
                 }
-            fsm["arn_reference"] = json.load(open(f"{DIR}{sanitized_title}-arn.json", "r"))
         else:
             fsm["state"] = "_skip"
     elif event == "start" and tag_no_ns == "revision":
         fsm["state"] = "_revision"
     elif event == "end" and tag_no_ns == "page":
         if "broken_links" in fsm:
-            # removal -> revert + purposely
             for link_obj in fsm["broken_links"]:
                 link_obj["remove-revert"] = []
                 link_obj["remove-purposely"] = []
@@ -122,14 +114,7 @@ def _revision(event, elem, fsm):
             for link_obj in fsm["broken_links"]:
                 link_url = link_obj["url"]
 
-                eventual_augmentation = ""
-                if link_url in fsm["arn_reference"] and fsm["arn_reference"][link_url]["last_revision_AUG_REM"]["type"] == "augmented":
-                    eventual_augmentation = fsm["arn_reference"][link_url]["last_revision_AUG_REM"]["match"]
-                # eventual_removal = False
-                # if link_url in fsm["arn_reference"] and fsm["arn_reference"][link_url]["last_revision_AUG_REM"]["type"] == "removed":
-                #     eventual_removal = True
-
-                if not fuzzy_match.check_if_removed(link_url, revision_text):
+                if link_url in revision_text:
                     if link_obj["removal"] and link_obj["removal"][-1]["edit_meta_to"] is None:
                         link_obj["removal"][-1]["edit_meta_to"] = fsm["revision-meta"][fsm["timestamp"]]
                 else:
@@ -154,10 +139,7 @@ def _revision(event, elem, fsm):
                         link_obj["==External links=="] = False
 
                 if link_obj["augmentation"]["augmentation_url"] == "":
-                    if eventual_augmentation != "" and eventual_augmentation in revision_text:
-                        match = eventual_augmentation
-                    else:
-                        match = fuzzy_match.check_if_augmented_strict(link_url, revision_text)
+                    match = fuzzy_match.check_if_augmented(link_url, revision_text, fsm)
                     if match != "":
                         link_obj["augmentation"]["edit_meta"] = fsm["revision-meta"][fsm["timestamp"]]
                         link_obj["augmentation"]["augmentation_url"] = match
@@ -168,7 +150,7 @@ def _revision(event, elem, fsm):
 
                 aug_link_url = link_obj["augmentation"]["augmentation_url"]
                 if aug_link_url != "":
-                    if not fuzzy_match.check_if_removed(aug_link_url, revision_text):
+                    if aug_link_url in revision_text:
                         if link_obj["augmentation"]["removal"] and link_obj["augmentation"]["removal"][-1]["edit_meta_to"] is None:
                             link_obj["augmentation"]["removal"][-1]["edit_meta_to"] = fsm["revision-meta"][fsm["timestamp"]]
                     else:
@@ -186,9 +168,7 @@ def _revision(event, elem, fsm):
                             link_obj["augmentation"]["removal"][-1]["first"] = True
                         if fsm["timestamp"] == fsm["last_revision"]["timestamp"]:
                             link_obj["augmentation"]["removal"][-1]["last"] = True
-        except Exception as e:
-            print(f"Error occurred: {e}")
-            traceback.print_exc()
+        except Exception as _:
             fsm["state"] = "_skip"
     elif event == "end" and tag_no_ns == "revision":
         fsm["state"] = "_page"

@@ -31,6 +31,7 @@ def check_if_augmented_strict(broken_link, revision_text):
 def check_if_augmented_fuzzy(broken_link, archived_link):
     # for archived_link in archived_links:
     live_domain = extract_domain(broken_link)
+    live_domain.lstrip("www.")
     if live_domain not in archived_link:
         return ""
 
@@ -71,6 +72,8 @@ def fuzzy_check(broken_link,  revision_text, fsm):
     return ""
 
 def check_if_augmented(broken_link, revision_text, fsm):
+    revision_text = revision_text.replace("%2F", "/")
+
     matched = check_if_augmented_strict(broken_link, revision_text)
     if matched:
         return matched
@@ -84,6 +87,19 @@ def check_if_augmented(broken_link, revision_text, fsm):
         return ""
 
     return fuzzy_check(broken_link, revision_text, fsm)
+
+
+
+def check_if_removed(broken_link, revision_text):
+    if broken_link in revision_text:
+        return False
+    if broken_link.startswith("http://") and broken_link[7:] in revision_text:
+        return False
+    if '#' in broken_link and broken_link.split('#')[0] in revision_text:
+        return False
+    return True
+
+
 
 
 # live_link = "http://crosstree.info/Documents/Care%20of%20F%20n%20V.pdf"

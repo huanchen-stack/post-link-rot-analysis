@@ -23,7 +23,7 @@ def process_queue(input_file, output_file, start_index=0):
         probe_queue = json.load(infile)
     probe_queue = probe_queue[start_index::N_SHARD]
 
-    for index in range(start_index, len(probe_queue)):
+    for index in range(len(probe_queue)):
         try:
             entry = probe_queue[index]
             url = entry["url"]
