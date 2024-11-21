@@ -7,7 +7,7 @@ import fuzzy_match
 import extract_links
 
 
-SHARD = 3
+SHARD = 0
 ENWIKI_DUMPS = [
     "enwiki-latest-pages-meta-history1.xml-p10839p11398",
     "enwiki-latest-pages-meta-history2.xml-p102439p106234",
@@ -17,6 +17,7 @@ ENWIKI_DUMPS = [
 DUMP_PATH = f"enwiki/{ENWIKI_DUMPS[SHARD]}"
 DIR = f"edit_history/edit_history_{SHARD+1}/"
 ITER_DIR = "edit_history/iter/"
+O_FNAME = "iter_edit_history_results.json"
 REVISION_SAVE_YEAR = "2019"
 CUR_YEAR = "2024"
 
@@ -27,6 +28,13 @@ def get_tag_no_ns(elem):
 
 def clean_title(title):
     return ''.join([c for c in title if c.isalnum()])
+
+
+def extract_marked_dead_citations(target_url, revision_text):
+    escaped_url = re.escape(target_url)
+    cite_dead_regex = rf"\{{\{{.*?cite.*?{escaped_url}.*?url-status\s*=\s*dead.*?\}}\}}"
+    matches = re.findall(cite_dead_regex, revision_text, flags=re.IGNORECASE | re.DOTALL)
+    return matches
 
 with open(os.path.join(ITER_DIR, "probe_live_broken_links.json"), "r", encoding="utf-8") as file:
     ALL_BROKEN_LINKS = json.load(file)
@@ -58,15 +66,16 @@ def _page(event, elem, fsm):
             for r in revisions:
                 if "timestamp" not in r:
                     continue
-                if int(r["timestamp"][:4]) >= int(REVISION_SAVE_YEAR):
-                    if fsm["first_revision_2019"] == {}:
-                        fsm["first_revision_2019"] = r
-                    fsm["revision-meta"][r["timestamp"]] = r
+                # if int(r["timestamp"][:4]) >= int(REVISION_SAVE_YEAR):
+                if fsm["first_revision_2019"] == {}:
+                    fsm["first_revision_2019"] = r
+                fsm["revision-meta"][r["timestamp"]] = r
             fsm["last_revision"] = revisions[-1]
             fsm["broken_links"] = [
                 link_obj for link_obj in ALL_BROKEN_LINKS[folder_path][sanitized_title]["list_of_links"]
             ]
             for link_obj in fsm["broken_links"]:
+                link_obj["first_occurance"] = None
                 link_obj["removal"] = []
                 link_obj["augmentation"] = {
                     "edit_meta": None,
@@ -114,13 +123,27 @@ def _revision(event, elem, fsm):
     if event == "end" and tag_no_ns == "timestamp":
         fsm["timestamp"] = elem.text
     elif event == "end" and tag_no_ns == "text":
-        if int(fsm["timestamp"][:4]) < int(REVISION_SAVE_YEAR):
-            return
+        # if int(fsm["timestamp"][:4]) < int(REVISION_SAVE_YEAR):
+        #     return
         revision_text = elem.text or ""
         # archived_links = extract_links.extract_external_links(revision_text)["archived_links"]
         try:
             for link_obj in fsm["broken_links"]:
                 link_url = link_obj["url"]
+
+                if link_obj["first_occurance"] is None:
+                    if link_url in revision_text:
+                        link_obj["first_occurance"] = fsm["revision-meta"][fsm["timestamp"]]
+                    else:
+                        continue
+                # elif link_obj["mark_as_dead"] is None and link_url in fsm["arn_reference"] and fsm["arn_reference"][link_url]["last_revision_AUG_REM"]["type"] != "no_action":
+                # # elif link_obj["mark_as_dead"] is None and link_url in revision_text:
+                #     marked_dead_matches = extract_marked_dead_citations(link_url, revision_text)
+                #     if marked_dead_matches and len(marked_dead_matches) > 0:
+                #         link_obj["mark_as_dead"] = {
+                #             "revision": fsm["revision-meta"][fsm["timestamp"]],
+                #             "mark": marked_dead_matches[0] 
+                #         }
 
                 eventual_augmentation = ""
                 if link_url in fsm["arn_reference"] and fsm["arn_reference"][link_url]["last_revision_AUG_REM"]["type"] == "augmented":
@@ -210,10 +233,11 @@ state_functions = {
 
 # Function to write results to a JSON file
 def write_results(link_objects):
-    with open(f"{ITER_DIR}/results.json", 'a', encoding='utf-8') as f:
+    with open(f"{ITER_DIR}/{O_FNAME}", 'a', encoding='utf-8') as f:
         for link_obj in link_objects:
             f.write(f"{json.dumps(link_obj)}\n")
     print(f"Logging results from folder {link_obj['folder_path']} article {link_obj['article_name']}", flush=True)
+    # exit(0)
 
 def parse_FSM(filename):
     context = ET.iterparse(filename, events=("start", "end"))

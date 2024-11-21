@@ -118,7 +118,7 @@ def process_queue(input_file, output_file, start_index=0):
             )
             entry["wayback_historically_alive"] = [wayback_historically_alive, reason]
 
-            if entry["wayback_same_dir_alive"]:
+            if wayback_historically_alive:
                 WAYBACK_SAME_DIR_ALIVE += 1
             else:
                 WAYBACK_SAME_DIR_DEAD += 1

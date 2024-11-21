@@ -17,7 +17,6 @@
 ---
 8. `last_revision_analysis.py`: efficiently extract all eventually-augmented/removed links (by only looking at grouped broken links and the last revision)
 9. `iter_edit_history_FSM.py`: re-iterate through all edit histories, find date of 1st [augmentation, removal]
-10. `removal_reason_filters.py` <- not finished yet ->
-
-11. `probe_archive.py`
+10. `removal_reason_filters.py`: 
+11. `probe_archive_conf.py`
 

@@ -43,6 +43,9 @@ FILTERS = [
     r"update",
     r"reorganise",
 
+    r"unreliable",
+    r"random",
+
     # section moves
     r"moving.*to.*",
     r"move.*to.*",
