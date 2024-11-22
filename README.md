@@ -1,5 +1,7 @@
 # post-link-rot-analysis
 
+Results are too large to upload to github.
+
 1. `parse_FSM.py`: read and parse ext dump; output is the first revision in 2019/2014 as well as revision meta (optional: `article_move_analysis.py`)
 ---
 2. `extract_links.py`: read the first revisions and extract external links using `mwparserfromhell`
